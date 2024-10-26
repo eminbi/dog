@@ -1,50 +1,112 @@
-# main.py
-
 import os
-from data_preprocessing import preprocess_video
-from feature_extraction import extract_hog_features
-from model_training import train_model
-from db_manager import DBManager
-import configparser
+import json
+import cv2
+import numpy as np
+from skimage.feature import hog
+import tensorflow as tf
+from tensorflow.keras import layers, models
 
-# Step 1: Config 파일 불러오기
-config = configparser.ConfigParser()
-config.read('config.json')
+# JSON 파일 읽기
+def load_config(file_path):
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Configuration file not found: {file_path}")
+    with open(file_path, 'r') as file:
+        return json.load(file)
 
-# Step 2: 데이터베이스 연결 설정
-db = DBManager(config['DATABASE']['db_path'])
+config = load_config('config.json')
 
-# Step 3: 비디오 데이터 전처리
-def run_preprocessing():
-    video_path = config['PATH']['input_video']
-    output_dir = config['PATH']['processed_data']
-    preprocess_video(video_path, output_dir)
-    print("Step 3: 데이터 전처리가 완료되었습니다.")
+# 전처리 함수
+def preprocess_frame(frame, config):
+    if config['preprocessing'].get('resize', False):
+        frame = cv2.resize(frame, tuple(config['model']['input_shape'][:2]))
+    if config['preprocessing'].get('gray_scale', False):
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    if config['preprocessing'].get('normalize', False):
+        frame = frame / 255.0
+    if config['preprocessing'].get('denoise', False):
+        frame = cv2.fastNlMeansDenoisingColored(frame, None, 10, 10, 7, 21)
+    if config['preprocessing'].get('rotation_correction', False):
+        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+    return frame
 
-# Step 4: 특징 추출 및 데이터베이스 저장
-def run_feature_extraction():
-    features = extract_features(config['PATH']['processed_data'])
-    for feature in features:
-        db.save_behavior(feature['behavior'], feature['confidence'])
-    print("Step 4: 특징 추출 및 데이터베이스 저장이 완료되었습니다.")
+# HOG 특징 추출 함수
+def extract_hog_features(frame, config):
+    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    block_norm = config['hog'].get('block_norm', 'L2-Hys')
+    features, hog_image = hog(
+        gray_frame, visualize=True, block_norm=block_norm
+    )
+    return features
 
-# Step 5: 모델 학습
-def run_training():
-    data_path = config['PATH']['feature_data']
-    train_model(data_path)
-    print("Step 5: 모델 학습이 완료되었습니다.")
+# CNN 모델 생성 함수
+def build_model(config):
+    input_shape = tuple(config['model'].get('input_shape', (224, 224, 3)))
+    dropout_rate = config['model'].get('dropout_rate', 0.5)
+    optimizer = config['model'].get('optimizer', 'adam')
 
-# Step 6: 예측 및 결과 확인
-def run_prediction():
-    # 예측 모델 불러오기 및 테스트 데이터 예측 (여기서는 예시로 설명)
-    # 예측된 결과를 시각화하거나 콘솔에 출력합니다
-    print("Step 6: 모델을 사용한 예측이 완료되었습니다.")
-    # 여기에 예측 모델을 활용해 결과를 출력하는 코드 추가 가능
+    model = models.Sequential([
+        layers.Conv2D(32, (3, 3), activation='relu', input_shape=input_shape),
+        layers.MaxPooling2D((2, 2)),
+        layers.Conv2D(64, (3, 3), activation='relu'),
+        layers.MaxPooling2D((2, 2)),
+        layers.Conv2D(64, (3, 3), activation='relu'),
+        layers.Flatten(),
+        layers.Dense(64, activation='relu'),
+        layers.Dropout(dropout_rate),
+        layers.Dense(10, activation='softmax')
+    ])
+    model.compile(optimizer=optimizer, 
+                  loss='categorical_crossentropy', 
+                  metrics=['accuracy'])
+    return model
 
-# Step 7: 실행 워크플로
-if __name__ == "__main__":
-    run_preprocessing()
-    run_feature_extraction()
-    run_training()
-    run_prediction()
-    print("모든 분석 과정이 완료되었습니다.")
+# 비디오 처리 및 학습 루프
+def process_and_train(video_path, config):
+    if not os.path.exists(video_path):
+        print(f"Error: Video file not found at {video_path}")
+        return
+    
+    # 비디오 파일 읽기
+    video_capture = cv2.VideoCapture(video_path)
+    frames = []
+    labels = []  # 필요 시 라벨 추가
+
+    # 프레임 처리
+    frame_count = 0
+    while True:
+        ret, frame = video_capture.read()
+        if not ret:
+            break
+        
+        # 전처리
+        processed_frame = preprocess_frame(frame, config)
+        frames.append(processed_frame)
+        
+        # HOG 특징 추출
+        if config['hog'].get('use_hog', False):
+            features = extract_hog_features(processed_frame, config)
+
+        # 실시간 시각화 (프레임마다 표시하지 않음)
+        if config['visualization'].get('enable_real_time_visualization', False) and frame_count % 10 == 0:
+            cv2.imshow('Processed Frame', processed_frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+        frame_count += 1
+
+    video_capture.release()
+    cv2.destroyAllWindows()
+
+    # CNN 모델 학습
+    frames = np.array(frames)
+    model = build_model(config)
+    batch_size = config['model'].get('batch_size', 32)
+    epochs = config['model'].get('epochs', 10)
+    
+    if len(labels) == 0:
+        labels = frames  # 임시로 자기 예측
+
+    model.fit(frames, labels, epochs=epochs, batch_size=batch_size)
+
+# 실행
+video_path = config['video_processing']['video_path']
+process_and_train(video_path, config)
