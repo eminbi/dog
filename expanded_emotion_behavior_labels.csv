@@ -1,0 +1,49 @@
+import csv
+import math
+
+# 16개의 라벨링된 감정 상태 데이터 예시
+data = [
+    {"frame_id": 1, "감정 상태": "Excited", "귀 각도": 20, "꼬리 각도": 70, "몸 각도": 15, "행동 속도": 1.5, "행동 설명": "꼬리를 활발히 흔들며 주변을 빠르게 탐색"},
+    {"frame_id": 2, "감정 상태": "Elated", "귀 각도": 15, "꼬리 각도": 60, "몸 각도": 10, "행동 속도": 1.8, "행동 설명": "꼬리를 흔들며 활기찬 상태로 뛰어다님"},
+    {"frame_id": 3, "감정 상태": "Delighted", "귀 각도": 10, "꼬리 각도": 50, "몸 각도": 10, "행동 속도": 1.2, "행동 설명": "매우 유쾌하게 꼬리와 귀가 모두 위로 향함"},
+    {"frame_id": 4, "감정 상태": "Glad", "귀 각도": 20, "꼬리 각도": 40, "몸 각도": 15, "행동 속도": 1.0, "행동 설명": "만족하며 주위를 기쁘게 탐색"},
+    {"frame_id": 5, "감정 상태": "Content", "귀 각도": 30, "꼬리 각도": 30, "몸 각도": 20, "행동 속도": 0.8, "행동 설명": "평온하게 주변을 탐색하고 몸이 이완됨"},
+    {"frame_id": 6, "감정 상태": "Serene", "귀 각도": 40, "꼬리 각도": 20, "몸 각도": 25, "행동 속도": 0.5, "행동 설명": "고요한 상태로, 몸을 이완하며 주변을 관찰"},
+    {"frame_id": 7, "감정 상태": "Relaxed", "귀 각도": 45, "꼬리 각도": 10, "몸 각도": 30, "행동 속도": 0.4, "행동 설명": "편안하게 몸을 유지하고 거의 움직이지 않음"},
+    {"frame_id": 8, "감정 상태": "Sleepy", "귀 각도": 50, "꼬리 각도": 5, "몸 각도": 35, "행동 속도": 0.2, "행동 설명": "졸린 상태로 귀와 몸이 무겁게 처짐"},
+    {"frame_id": 9, "감정 상태": "Tired", "귀 각도": 60, "꼬리 각도": 10, "몸 각도": 50, "행동 속도": 0.1, "행동 설명": "피로한 상태, 움직임이 거의 없음"},
+    {"frame_id": 10, "감정 상태": "Bored", "귀 각도": 65, "꼬리 각도": 15, "몸 각도": 45, "행동 속도": 0.3, "행동 설명": "흥미가 없는 상태로 느리게 움직임"},
+    {"frame_id": 11, "감정 상태": "Gloomy", "귀 각도": 75, "꼬리 각도": 10, "몸 각도": 60, "행동 속도": 0.3, "행동 설명": "슬프고 무기력한 상태로 움직임이 둔함"},
+    {"frame_id": 12, "감정 상태": "Miserable", "귀 각도": 80, "꼬리 각도": 5, "몸 각도": 70, "행동 속도": 0.2, "행동 설명": "매우 불쾌한 상태로 몸과 귀가 축 처짐"},
+    {"frame_id": 13, "감정 상태": "Upset", "귀 각도": 85, "꼬리 각도": 5, "몸 각도": 75, "행동 속도": 0.7, "행동 설명": "감정이 상하여 예민하게 반응"},
+    {"frame_id": 14, "감정 상태": "Distressed", "귀 각도": 80, "꼬리 각도": 0, "몸 각도": 65, "행동 속도": 0.6, "행동 설명": "불안한 상태로 몸과 꼬리가 낮아짐"},
+    {"frame_id": 15, "감정 상태": "Tense", "귀 각도": 25, "꼬리 각도": 65, "몸 각도": 30, "행동 속도": 1.4, "행동 설명": "긴장하여 귀와 꼬리가 세워짐"},
+    {"frame_id": 16, "감정 상태": "Alarmed", "귀 각도": 5, "꼬리 각도": 75, "몸 각도": 10, "행동 속도": 2.0, "행동 설명": "놀란 상태로 귀와 꼬리를 모두 세움"}
+]
+
+# 수식 계산 함수 정의
+def calculate_arousal(theta_ear, theta_tail, theta_body):
+    """귀, 꼬리, 몸 각도를 사용하여 각성(Arousal)을 계산합니다."""
+    return math.sqrt(theta_ear**2 + theta_tail**2 + theta_body**2)
+
+def calculate_valence(theta_ear, theta_tail, theta_body):
+    """귀, 꼬리, 몸 각도를 사용하여 유쾌함(Valence)을 계산합니다."""
+    return math.cos(math.radians(theta_tail)) + math.sin(math.radians(theta_ear)) - math.tan(math.radians(theta_body))
+
+def calculate_intensity(arousal, valence):
+    """각성(Arousal)과 유쾌함(Valence)을 사용하여 강도(Intensity)를 계산합니다."""
+    return arousal * valence
+
+# 수식 계산 적용
+for entry in data:
+    entry["Arousal"] = calculate_arousal(entry["귀 각도"], entry["꼬리 각도"], entry["몸 각도"])
+    entry["Valence"] = calculate_valence(entry["귀 각도"], entry["꼬리 각도"], entry["몸 각도"])
+    entry["Intensity"] = calculate_intensity(entry["Arousal"], entry["Valence"])
+
+# CSV 파일 생성 및 저장
+with open("expanded_emotion_behavior_labels.csv", mode="w", newline="", encoding="utf-8") as file:
+    writer = csv.DictWriter(file, fieldnames=data[0].keys())
+    writer.writeheader()
+    writer.writerows(data)
+
+print("CSV 파일이 생성되었습니다: expanded_emotion_behavior_labels.csv")
