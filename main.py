@@ -2,7 +2,7 @@
 
 import os
 from data_preprocessing import preprocess_video
-from feature_extraction import extract_features
+from feature_extraction import extract_hog_features
 from model_training import train_model
 from db_manager import DBManager
 import configparser
